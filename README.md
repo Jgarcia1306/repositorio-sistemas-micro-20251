@@ -1,1 +1,1 @@
-Jean Garc¡a y Jes£s Hernandez 
+Jean GarcÃ­a y JesÃºs Hernandez 
