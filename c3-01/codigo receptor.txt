@@ -1,0 +1,59 @@
+#include <Arduino.h>
+#include <esp_now.h>
+#include <WiFi.h>
+
+#define BAUD_RATE 115200
+#define LED 16
+#define FREQ_0 5000
+#define CANAL_0 0
+
+int RESOLUCION = 12; 
+int dutyCycleRecibido = 0;  // Valor objetivo que viene del otro ESP32
+int brilloActual = 0;       // Valor actual del PWM
+
+typedef struct struct_message {
+  float ADC_VOLT;
+} struct_message;
+
+struct_message myData;
+
+// Callback al recibir datos
+void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
+  memcpy(&myData, incomingData, sizeof(myData));
+
+  // Convertir el voltaje en porcentaje y luego a valor de ciclo de trabajo para PWM
+  float dutyCyclePorcentaje = (myData.ADC_VOLT / 3.3) * 100;
+  dutyCycleRecibido = (dutyCyclePorcentaje / 100.0) * 255;  // Mapear de 0-255 para PWM
+
+  Serial.print("Voltaje de potenciometro: ");
+  Serial.println(myData.ADC_VOLT);
+  Serial.print("Ciclo de trabajo: ");
+  Serial.print(dutyCyclePorcentaje);
+  Serial.println("%");
+}
+
+void setup() {
+  ledcSetup(CANAL_0, FREQ_0, RESOLUCION);  // Establecer resolución PWM a 12 bits
+  ledcAttachPin(LED, CANAL_0);
+  Serial.begin(BAUD_RATE);
+  WiFi.mode(WIFI_STA);
+
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error al inicializar ESP-NOW");
+    return;
+  }
+
+  esp_now_register_recv_cb(OnDataRecv);
+}
+
+void loop() {
+  if (brilloActual < dutyCycleRecibido) {
+    brilloActual++;
+    ledcWrite(CANAL_0, brilloActual);  // Ajustar el brillo del LED
+  } else if (brilloActual > dutyCycleRecibido) {
+    brilloActual--;
+    ledcWrite(CANAL_0, brilloActual);  // Ajustar el brillo del LED
+  }
+
+  delay(10);  // Controla la velocidad de la transición
+}
