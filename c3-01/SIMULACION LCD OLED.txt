@@ -1,0 +1,91 @@
+//Link simulación: https://wokwi.com/projects/430870233623685121
+
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <Adafruit_Sensor.h>
+#include <DHT.h>
+#include <math.h>
+
+// DHT22 Configuración
+#define DHTPIN 15
+#define DHTTYPE DHT22
+DHT dht(DHTPIN, DHTTYPE);
+
+// LCD y OLED
+#define DIRECCION_I2C_LCD    0x27
+#define FILAS                2
+#define COLUMNAS             16
+LiquidCrystal_I2C lcd(DIRECCION_I2C_LCD, COLUMNAS, FILAS);
+
+#define OLED_ANCHO           128
+#define OLED_ALTO            64
+#define DIRECCION_I2C_OLED   0x3C
+Adafruit_SSD1306 oled(OLED_ANCHO, OLED_ALTO, &Wire, -1);
+
+// Potenciómetro
+#define INPUT_POTENCIOMETRO A10   // GPIO4
+float ADC_VOLT_MAX = 3.3;
+int RESOLUCION = 12;  // 12 bits → 0 a 4095
+
+// Salida de control
+#define SALIDA_CONTROL 25
+
+// Variables
+float setpoint = 0.0;
+bool estadoControl = false;
+
+void setup() {
+  dht.begin();
+
+  pinMode(INPUT_POTENCIOMETRO, INPUT);
+  pinMode(SALIDA_CONTROL, OUTPUT);
+
+  // LCD
+  lcd.init();
+  lcd.backlight();
+
+  // OLED
+  oled.begin(SSD1306_SWITCHCAPVCC, DIRECCION_I2C_OLED);
+  oled.clearDisplay();
+}
+
+void loop() {
+  // Lectura del potenciómetro y cálculo del setpoint
+  int adcValue = analogRead(INPUT_POTENCIOMETRO);
+  float voltaje = (adcValue / (pow(2, RESOLUCION) - 1)) * ADC_VOLT_MAX;
+  setpoint = (adcValue / 4095.0) * 100.0; //Setpoint de 0° a 100°
+
+  // Lectura de temperatura y humedad
+  float temp = dht.readTemperature();
+  
+  // Lógica de control
+  if (!isnan(temp)) {
+    if (temp > setpoint) {
+      estadoControl = true;
+      digitalWrite(SALIDA_CONTROL, HIGH);
+    } else {
+      estadoControl = false;
+      digitalWrite(SALIDA_CONTROL, LOW);
+    }
+  }
+
+  // Mostrar en LCD
+  lcd.setCursor(0, 0);
+  lcd.print("SETPOINT:"); lcd.print(setpoint, 1);
+  lcd.setCursor(0, 1);
+  lcd.print(estadoControl ? " ON " : " OFF");
+
+  // Mostrar en OLED
+  oled.clearDisplay();
+  oled.setTextSize(1);
+  oled.setTextColor(WHITE);
+
+  oled.setCursor(0, 0);
+  oled.print("TEMPERATURA: "); oled.print(temp, 1); oled.println(" C");
+
+  oled.display();
+
+  delay(1000);
+}
